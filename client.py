@@ -2,21 +2,29 @@ import socket
 import threading
 import sys
 import select
+import logging
+
+logging.basicConfig(level=logging.INFO,
+                    format='%(name)s: %(message)s',
+                    )
 
 
 class Client:
-    def __init__(self, host, port):
+    def __init__(self, host, port, close_event):
         self.host = host
         self.port = port
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.close_event = threading.Event()
+        self.close_event = close_event
+        self.logger = logging.getLogger("Socket")
+        self.messages_logger = logging.getLogger("Message")
 
     def connect(self):
         connection = self.server_socket.connect_ex((self.host, self.port))
         if connection == 0:
-            print(f"Connected to server on {self.host}:{self.port}")
+            self.logger.info(f"Connected to server on {self.host}:{self.port}")
         else:
-            print(f"Connection failed to server on {self.host}:{self.port}")
+            self.logger.error(
+                f"Connection failed to server on {self.host}:{self.port}")
             self.close_event.set()
             sys.exit()
 
@@ -31,42 +39,70 @@ class Client:
                         message = socks.recv(2048)
                         decoded_message = message.decode()
                         if (decoded_message == "close"):
-                            print("Server is shutting down...!")
-                            self.server_socket.shutdown(socket.SHUT_RDWR)
-                            self.server_socket.close()
-                            self.close_event.set()
-                            # sys.exit()
+                            self._close_connection_from_server()
                         else:
-                            print(message.decode(), end="")
+                            self.messages_logger.info(message.decode().strip())
             except socket.error as e:
-                print(f"Error connecting to the server: {e}")
-        print("Closing connection",
-              self.close_event.is_set())
+                self.logger.error(f"Error connecting to the server: {e}")
 
     def send_message(self):
         while not self.close_event.is_set() and not sys.stdin.closed:
             try:
                 message = sys.stdin.readline()
                 if len(message) > 0:
-                    self.server_socket.send(message.encode())
+                    if message.strip() == "close":
+                        self._close_connection_from_client()
+                    else:
+                        self.server_socket.send(message.encode())
+                sys.stdin.flush()
             except Exception as e:
                 if {e} == "I/O operation on closed file":
-                    print({e})
-        print("Connection closed..!")
+                    self.logger.error({e})
+        self.logger.info("Connection closed..!")
+
+    def _close_connection_from_server(self):
+        self.logger.warning("Closing connection...")
+        # try:
+        # if not sys.stdin.closed:
+        # sys.stdin.close()
+        # except Exception as e:
+        #     if "I/O operation on closed file" in {e}:
+        #         self.logger.error({e})
+        # finally:
+        self.server_socket.shutdown(socket.SHUT_RDWR)
+        self.server_socket.close()
+        self.close_event.set()
+
+    def _close_connection_from_client(self):
+        self.logger.warning("Closing connection...")
+        try:
+            self.server_socket.send("close".encode())
+            # if not sys.stdin.closed:
+            #     sys.stdin.close()
+        except socket.error as e:
+            self.logger.error(f"Error connecting to the server{e}")
+            pass
+        finally:
+            self.server_socket.shutdown(socket.SHUT_RDWR)
+            self.server_socket.close()
+            self.close_event.set()
 
 
 if __name__ == "__main__":
     # address = input("IP Address: ")
     # port = input("Port: ")
-    client = Client("127.0.0.1", 12435)
+    close_event = threading.Event()
+
+    client = Client("127.0.0.1", 12345, close_event)
     client.connect()
 
-    send_thread = threading.Thread(target=client.send_message, daemon=True)
+    send_thread = threading.Thread(
+        target=client.send_message)
     receive_thread = threading.Thread(target=client.receive_messages)
 
     send_thread.start()
     receive_thread.start()
 
-    receive_thread.join()
-    print("Exit...")
-    quit()
+    close_event.wait()
+
+    print("Press <Enter> to exit...")
