@@ -62,13 +62,6 @@ class Client:
 
     def _close_connection_from_server(self):
         self.logger.warning("Closing connection...")
-        # try:
-        # if not sys.stdin.closed:
-        # sys.stdin.close()
-        # except Exception as e:
-        #     if "I/O operation on closed file" in {e}:
-        #         self.logger.error({e})
-        # finally:
         self.server_socket.shutdown(socket.SHUT_RDWR)
         self.server_socket.close()
         self.close_event.set()
@@ -77,8 +70,6 @@ class Client:
         self.logger.warning("Closing connection...")
         try:
             self.server_socket.send("close".encode())
-            # if not sys.stdin.closed:
-            #     sys.stdin.close()
         except socket.error as e:
             self.logger.error(f"Error connecting to the server{e}")
             pass

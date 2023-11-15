@@ -22,12 +22,12 @@ class UserInputHandler:
                 if message == "close":
                     self.server._close_server()
                 elif message.startswith("ban"):
-                    client_id = message.split(" ")[1]
-                    if len(client_id) > 0:
+                    client_username = message.split(" ")[1]
+                    if len(client_username) > 0:
                         try:
                             client = next(
-                                client for client in self.server.clients if str(client[1][1]) == client_id)
-                            client[0].send("close".encode())
+                                client for client in self.server.clients if client[0] == client_username)
+                            client[1].send("close".encode())
                             self.server._disconnect_client(client)
                         except StopIteration:
                             self.logger.warning("Enter a valid client ID")
@@ -46,6 +46,7 @@ class UserInputHandler:
 
 class Server:
     def __init__(self, server_address, close_event):
+
         self.host = server_address[0]
         self.port = server_address[1]
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -68,14 +69,39 @@ class Server:
                 self.logger.info(
                     f"Connection from client {client_address[0]}:{client_address[1]}")
 
-                # protect client variable
-                with self.lock:
-                    self.clients.append((client_socket, client_address))
+                # request username
+                client_socket.send("Server << Enter your username: ".encode())
+                username = client_socket.recv(2048).decode().strip()
 
-                # assign a thread for each new subscribed client
-                client_handler = threading.Thread(
-                    target=self._handle_client, args=((client_socket, client_address),))
-                client_handler.start()
+                if len(username) > 0:
+                    # protect client variable
+                    self.lock.acquire()
+                    if username not in [user[0] for user in self.clients]:
+                        # username accepted
+                        self.clients.append(
+                            (username, client_socket, client_address))
+                        self.lock.release()
+                        client_socket.send(
+                            f"Server << Welcome {username} :)".encode())
+                        self.logger.info(f"{username} joined the chatroom")
+                        # inform other clients
+                        self._broadcast(
+                            f"{username} joined the chatroom".encode(), [client for client in self.clients if client[0] != username])
+                        # assign a thread for each new subscribed client
+                        client_handler = threading.Thread(
+                            target=self._handle_client, args=((username, client_socket, client_address),))
+                        client_handler.start()
+                    else:
+                        self.lock.release()
+                        client_socket.send(
+                            "Server << Username is already taken. Goodbye: ".encode())
+                        client_socket.send(
+                            "close".encode())
+                else:
+                    client_socket.send(
+                        "Server << Invalid username".encode())
+                    client_socket.send(
+                        "close".encode())
             except KeyboardInterrupt:
                 self._close_server()
             except socket.error as e:
@@ -88,8 +114,8 @@ class Server:
 
     # handle incoming messages for each client
     def _handle_client(self, client):
-        client_socket = client[0]
-        client_address = client[1]
+        client_username = client[0]
+        client_socket = client[1]
         try:
             while not self.close_event.is_set():
                 data = client_socket.recv(2048)
@@ -101,9 +127,9 @@ class Server:
                         self._disconnect_client(client)
                     else:
                         self.messages_logger.info(
-                            f"{client_address[1]} << {message}")
+                            f"{client_username} << {message}")
                         self._broadcast(
-                            f"{client_address[1]} << {message}".encode(),
+                            f"{client_username} << {message}".encode(),
                             [client_obj for client_obj in self.clients if client_obj != client]
                         )
         except KeyboardInterrupt:
@@ -113,28 +139,28 @@ class Server:
             self.logger.warning(f"Error handling client: {e}")
             # close connection with client on ERROR
             with self.lock:
-                self.clients.remove(client)
+                self.clients.pop(client)
 
     def _broadcast(self, message, clients):
         for client in clients:
-            # client --> (client_socket, client_address)
+            # client --> (client_username, client_socket, client_address)
             try:
-                client[0].send(message)
+                client[1].send(message)
             except Exception as e:
                 self.logger.error(f"Error broadcasting to client: {e}")
                 # close connection with client on ERROR
                 with self.lock:
-                    self.clients.remove(client)
+                    self.clients.pop(client)
 
     def _disconnect_client(self, client):
-        client_address = client[1]
+        client_username = client[0]
         # close connection with client
         with self.lock:
             self.clients.remove(client)
             self.logger.info(
-                f"{client_address[1]} has disconnected")
+                f"{client_username} has disconnected")
         with self.lock:
-            self._broadcast(f"Server << {client_address[1]} has disconnected".encode(),
+            self._broadcast(f"Server << {client_username} has disconnected".encode(),
                             [client_obj for client_obj in self.clients if client_obj != client])
 
     def _close_server(self):
@@ -142,19 +168,19 @@ class Server:
             f"Server is shutting down. Informing clients...")
         # send closing message to all subscribed clients
         for client in self.clients:
-            client_address = client[1]
+            client_username = client[0]
             try:
                 self.logger.warning(
-                    f"Informing client {client_address[0]}:{client_address[1]}...")
+                    f"Informing client {client_username}...")
                 # close connection from client side
-                client[0].send("close".encode())
-                client_socket = client[0]
+                client_socket = client[1]
+                client_socket.send("close".encode())
                 # close connection from server side
                 client_socket.shutdown(socket.SHUT_RDWR)
                 client_socket.close()
             except Exception as e:
                 self.logger.error(
-                    f"Error sending shutdown message to {client_address[0]}: {e}")
+                    f"Error sending shutdown message to {client_username}: {e}")
 
         # clear clients list
         with self.lock:
