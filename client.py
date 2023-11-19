@@ -16,7 +16,7 @@ class Client:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.close_event = close_event
         self.logger = logging.getLogger("Socket")
-        self.messages_logger = logging.getLogger("Message")
+        self.messages_logger = logging.getLogger("Chat")
 
     def connect(self):
         connection = self.server_socket.connect_ex((self.host, self.port))

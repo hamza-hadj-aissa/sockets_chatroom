@@ -61,7 +61,7 @@ class Server:
         self.close_event = close_event
         self.lock = threading.Lock()
         self.logger = logging.getLogger("Server")
-        self.messages_logger = logging.getLogger("Message")
+        self.messages_logger = logging.getLogger("Chat")
 
     def start(self):
         self.server_socket.setsockopt(
