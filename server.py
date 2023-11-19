@@ -19,21 +19,34 @@ class UserInputHandler:
             while not self.close_event.is_set():
                 print("Enter message (type 'close' to shut down the server)\n")
                 message = sys.stdin.readline().strip()
-                if message == "close":
-                    self.server._close_server()
-                elif message.startswith("ban"):
-                    client_username = message.split(" ")[1]
-                    if len(client_username) > 0:
-                        try:
-                            client = next(
-                                client for client in self.server.clients if client[0] == client_username)
-                            client[1].send("close".encode())
-                            self.server._disconnect_client(client)
-                        except StopIteration:
-                            self.logger.warning("Enter a valid client ID")
+                if message.split(" ")[0] == "close":
+
+                    # close a socket, either server or client
+                    message_array = message.split(" ")
+                    print("message_array", message_array)
+                    target_to_close = message_array[1]
+                    print("target", target_to_close)
+                    if target_to_close == ".":
+                        # "." stands for the host machine, which is the server
+                        # close the server
+                        self.server._close_server()
                     else:
-                        self.logger.warning("Enter a valid client ID")
+                        # close the client's socket
+                        client_username = target_to_close
+                        if len(client_username) > 0 or client_username != "":
+                            found = False
+                            for client in self.server.clients:
+                                if client_username == client[0]:
+                                    found = True
+                                    client[1].send("close".encode())
+                                    self.server._disconnect_client(client)
+                            if not found:
+                                self.logger.warning(
+                                    "Username does not exist. Enter a valid username:")
+                        else:
+                            self.logger.warning("Enter a valid username:")
                 else:
+                    # broadcast a message to all subscribed clients
                     self.server._broadcast(
                         f"Server << {message}".encode(), self.server.clients)
         except Exception as e:
@@ -69,39 +82,13 @@ class Server:
                 self.logger.info(
                     f"Connection from client {client_address[0]}:{client_address[1]}")
 
-                # request username
-                client_socket.send("Server << Enter your username: ".encode())
-                username = client_socket.recv(2048).decode().strip()
-
-                if len(username) > 0:
-                    # protect client variable
-                    self.lock.acquire()
-                    if username not in [user[0] for user in self.clients]:
-                        # username accepted
-                        self.clients.append(
-                            (username, client_socket, client_address))
-                        self.lock.release()
-                        client_socket.send(
-                            f"Server << Welcome {username} :)".encode())
-                        self.logger.info(f"{username} joined the chatroom")
-                        # inform other clients
-                        self._broadcast(
-                            f"{username} joined the chatroom".encode(), [client for client in self.clients if client[0] != username])
-                        # assign a thread for each new subscribed client
-                        client_handler = threading.Thread(
-                            target=self._handle_client, args=((username, client_socket, client_address),))
-                        client_handler.start()
-                    else:
-                        self.lock.release()
-                        client_socket.send(
-                            "Server << Username is already taken. Goodbye: ".encode())
-                        client_socket.send(
-                            "close".encode())
-                else:
-                    client_socket.send(
-                        "Server << Invalid username".encode())
-                    client_socket.send(
-                        "close".encode())
+                username = self._request_client_username(
+                    client_socket, client_address, "Server << Enter your username:", 0)
+                if username:
+                    # assign a thread for each new subscribed client
+                    client_handler = threading.Thread(
+                        target=self._handle_client, args=((username, client_socket, client_address),))
+                    client_handler.start()
             except KeyboardInterrupt:
                 self._close_server()
             except socket.error as e:
@@ -151,6 +138,46 @@ class Server:
                 # close connection with client on ERROR
                 with self.lock:
                     self.clients.pop(client)
+
+    def _request_client_username(self, client_socket, client_address, message, nbr_of_attempts):
+        if nbr_of_attempts >= 3:
+            client_socket.send(
+                "Server << You have succeded the number of attempts! Closing connection...\n".encode())
+            client_socket.send("close".encode())
+        else:
+            # request username
+            client_socket.send(message.encode())
+            # wait for client's response
+            username = client_socket.recv(2048).decode().strip()
+
+            if len(username) > 0:
+                # block access to self.clients variable
+                self.lock.acquire()
+                if username not in [user[0] for user in self.clients]:
+                    # username accepted
+                    self.clients.append(
+                        (username, client_socket, client_address))
+                    # permet access to self.clients variable
+                    self.lock.release()
+                    client_socket.send(
+                        f"Server << Welcome {username} :)".encode())
+                    self.logger.info(f"{username} joined the chatroom")
+                    # inform other clients
+                    self._broadcast(
+                        f"{username} joined the chatroom".encode(), [client for client in self.clients if client[0] != username])
+                    return username
+                else:
+                    # permet access to self.clients variable if first condition not satisfied.
+                    # Preventing undefinete block of access to self.clients
+                    self.lock.release()
+
+                    # request another username
+                    self._request_client_username(
+                        client_socket, client_address, f"Server << Username is already taken. {3 - nbr_of_attempts} attempts left. Enter a different username:", nbr_of_attempts + 1)
+            else:
+                # invalide username format
+                self._request_client_username(
+                    client_socket, client_address, f"Server << Invalid username. {3 - nbr_of_attempts} attempts left. Enter a different username:", nbr_of_attempts + 1)
 
     def _disconnect_client(self, client):
         client_username = client[0]
