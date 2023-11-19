@@ -140,10 +140,10 @@ class Server:
                     self.clients.pop(client)
 
     def _request_client_username(self, client_socket, client_address, message, nbr_of_attempts):
-        if nbr_of_attempts >= 3:
+        max_nbr_of_attempts = 3
+        if nbr_of_attempts >= max_nbr_of_attempts:
             client_socket.send(
-                "Server << You have succeded the number of attempts! Closing connection...\n".encode())
-            client_socket.send("close".encode())
+                "close\nServer << You have succeded the number of attempts!!".encode())
         else:
             # request username
             client_socket.send(message.encode())
@@ -173,11 +173,11 @@ class Server:
 
                     # request another username
                     self._request_client_username(
-                        client_socket, client_address, f"Server << Username is already taken. {3 - nbr_of_attempts} attempts left. Enter a different username:", nbr_of_attempts + 1)
+                        client_socket, client_address, f"Server << Username is already taken. {3 - nbr_of_attempts - 1} attempts left. Enter a different username:", nbr_of_attempts + 1)
             else:
                 # invalide username format
                 self._request_client_username(
-                    client_socket, client_address, f"Server << Invalid username. {3 - nbr_of_attempts} attempts left. Enter a different username:", nbr_of_attempts + 1)
+                    client_socket, client_address, f"Server << Invalid username. {max_nbr_of_attempts - nbr_of_attempts - 1} attempts left. Enter a different username:", nbr_of_attempts + 1)
 
     def _disconnect_client(self, client):
         client_username = client[0]

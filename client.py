@@ -38,7 +38,9 @@ class Client:
                     if socks == self.server_socket:
                         message = socks.recv(2048)
                         decoded_message = message.decode()
-                        if (decoded_message == "close"):
+                        if (decoded_message.split("\n")[0] == "close"):
+                            self.messages_logger.warning(
+                                decoded_message.split("\n")[1])
                             self._close_connection_from_server()
                         else:
                             self.messages_logger.info(message.decode().strip())
