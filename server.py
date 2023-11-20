@@ -50,6 +50,11 @@ class Client():
     def setUsername(self, username):
         self.__username = username
 
+    def __eq__(self, client):
+        if isinstance(client, Client):
+            return self.getUsername() == client.getUsername()
+        return False
+
 
 class Server:
     def __init__(self, server_address, close_event):
@@ -182,7 +187,10 @@ class Server:
             else:
                 # invalide username format
                 self._request_client_username(
-                    client_socket, client_address, f"Server << Username is already taken. Connection will be closed on no attempts left. {3 - nbr_of_attempts - 1} attempts left. Enter a different username:", nbr_of_attempts + 1)
+                    client_socket, client_address, f"Server << Invalid username. Connection will be closed on no attempts left. {3 - nbr_of_attempts - 1} attempts left. Enter a different username:", nbr_of_attempts + 1)
+
+    def delete_client_from_clients_list(self, client_to_delete: Client):
+        return [client for client in self.clients if client.getUsername() != client_to_delete.getUsername()]
 
     def _disconnect_client(self, client: Client):
         client_username = client.getUsername()
@@ -239,7 +247,7 @@ class UserInputHandler:
     def start(self):
         try:
             while not self.close_event.is_set():
-                print(
+                self.logger.info(
                     "Enter message (to close connection, type 'close .' to shut down the server, or 'close /username/' to disconnect a user):")
                 message = sys.stdin.readline().strip()
                 if message.split(" ")[0] == "close":
@@ -257,19 +265,19 @@ class UserInputHandler:
                         else:
                             # close the client's socket
                             client_username = target_to_close
-                            if len(client_username) > 0 or client_username != "":
-                                found = False
-                                for client in self.server.clients:
-                                    if client_username == client.getUsername():
-                                        found = True
-                                        client.getSocket().send("close".encode())
-                                        self.server._disconnect_client(client)
-                                if not found:
-                                    self.logger.warning(
-                                        "Username does not exist. Type 'close .' to shut down the server, or 'close /username/' to disconnect a user")
-                            else:
+                            # if client_username != "":
+                            found = False
+                            for client in self.server.clients:
+                                if client_username == client.getUsername():
+                                    found = True
+                                    client.getSocket().send("close".encode())
+                                    self.server._disconnect_client(client)
+                            if not found:
                                 self.logger.warning(
-                                    "Invalid argument. Type 'close .' to shut down the server, or 'close /username/' to disconnect a user")
+                                    "Username does not exist. Type 'close .' to shut down the server, or 'close /username/' to disconnect a user")
+                            # else:
+                                # self.logger.warning(
+                                # "Invalid argument. Type 'close .' to shut down the server, or 'close /username/' to disconnect a user")
                 else:
                     # broadcast a message to all subscribed clients
                     self.server._broadcast(
