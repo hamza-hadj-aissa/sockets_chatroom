@@ -25,6 +25,11 @@ class Socket_address():
     def setPort(self, port):
         self.__port = port
 
+    def __eq__(self, address):
+        if isinstance(address, Socket_address):
+            return self.getIp() == address.getIp() and self.getPort() == address.getPort()
+        return False
+
 
 class Client():
     def __init__(self, socket: socket.socket, address: Socket_address, username: str):
