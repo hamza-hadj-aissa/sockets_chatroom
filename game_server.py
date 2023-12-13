@@ -143,8 +143,18 @@ class GameServer(Server):
                     self.logger.info(f"{username} joined the chatroom")
                     # inform other clients
                     with self.lock:
+                        players_list = [player.getUsername(
+                        ) for game in self.games for player in game.players]
+
                         self._broadcast(
-                            f"{username} joined the chatroom".encode(), [client for client in self.clients if client.getUsername() != username])
+                            f"{username} joined the chatroom".encode(),
+                            [
+                                client for client in self.clients
+                                if client.getUsername()
+                                not in players_list
+                                and new_player.getUsername() not in players_list
+                            ]
+                        )
                     return new_player
                 else:
                     # permet access to self.clients variable if first condition not satisfied.
@@ -191,11 +201,10 @@ class GameServer(Server):
                                     (player.getUsername(), oppenent_username)
                                 )
                                 opponent.getSocket().send(f"Server << {player.getUsername(
-                                )} is requesting to play Rock Paper Scissors with you. Do you accept ?".encode()
+                                )} is requesting to play Rock Paper Scissors with you. Do you accept ?\n(Enter --> accept) or (Press <Enter> to refuse)".encode()
                                 )
                                 # lock the requesting player here,
                                 # until the game ends
-
                                 player.do_lock()
 
                             else:
@@ -239,25 +248,38 @@ class GameServer(Server):
                             player.getSocket().send(
                                 f"Server << {error_message}".encode())
                     else:
-                        client_username = player.getUsername()
-                        self.chat_logger.info(
-                            f"{client_username} << {message}"
+                        oppenent_exists, opponent, error_message = self.__get_game_request(
+                            player
                         )
-                        with self.lock:
-                            players_list = [player.getUsername(
-                            ) for game in self.games for player in game.players]
-
-                            self._broadcast(
-                                f"{client_username} << {message}".encode(),
-                                [
-                                    client for client in self.clients
-                                    if client.getUsername()
-                                    not in players_list
-                                    and client_username not in players_list
+                        if oppenent_exists:
+                            with self.games_requests_lock:
+                                self.games_requests = [game_request for game_request in self.games_requests if game_request != (
+                                    opponent.getUsername(), player.getUsername())
                                 ]
+                            self.chat_logger.info(
+                                f"{player.getUsername()} refused game request from {opponent.getUsername()}")
+                            opponent.getSocket().send(
+                                f"Server << {player.getUsername()} refused your request".encode())
+                        else:
+                            client_username = player.getUsername()
+                            self.chat_logger.info(
+                                f"{client_username} << {message}"
                             )
-                        if player.is_locked():
-                            player.do_unlock()
+                            with self.lock:
+                                players_list = [player.getUsername(
+                                ) for game in self.games for player in game.players]
+
+                                self._broadcast(
+                                    f"{client_username} << {message}".encode(),
+                                    [
+                                        client for client in self.clients
+                                        if client.getUsername()
+                                        not in players_list
+                                        and client_username not in players_list
+                                    ]
+                                )
+                            if player.is_locked():
+                                player.do_unlock()
         except KeyboardInterrupt:
             self._close_server()
         except socket.error as e:
