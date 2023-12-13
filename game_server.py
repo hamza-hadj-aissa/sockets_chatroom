@@ -275,7 +275,7 @@ class GameServer(Server):
                                         client for client in self.clients
                                         if client.getUsername()
                                         not in players_list
-                                        and client_username not in players_list
+                                        and client_username != client.getUsername()
                                     ]
                                 )
                             if player.is_locked():
