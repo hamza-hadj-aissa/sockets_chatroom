@@ -1,4 +1,4 @@
-# Socket chatroom/game
+# Socket Chat-room | Game-room
 
 Welcome to the Socket Chatroom! This simple chatroom allows users to connect, chat, and play Rock, Paper, Scissors with others. Please follow the instructions below to make the most of your chatroom experience.
 ## Table of Contents
