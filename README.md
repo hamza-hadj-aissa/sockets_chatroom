@@ -64,7 +64,6 @@ Chat: Server << Enter your username:
 - Once you've set your username, you can start broadcasting messages to the chatroom. Type your message and press Enter to send it to all connected users.
 ```
 Chat: Server << Welcome hamza :)
-Chat: hamza joined the chatroom
 |
 ```
 - To exit the chatroom and close your connection, type the following command:
