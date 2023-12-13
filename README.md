@@ -3,7 +3,7 @@
 Welcome to the Socket Chatroom! This simple chatroom allows users to connect, chat, and play Rock, Paper, Scissors with others. Please follow the instructions below to make the most of your chatroom experience.
 ## Table of Contents
 
--   [Features](#Features)
+-   [Features](#features)
 -   [Usage](#usage)
 
 
@@ -29,6 +29,27 @@ Welcome to the Socket Chatroom! This simple chatroom allows users to connect, ch
 - User vs. User Gameplay: The game mechanics enable users to challenge each other to a round of Rock, Paper, Scissors, enhancing the interactive nature of the chatroom.
 
 ## Usage
+
+### Admin Commands
+Admins have perticular commands to manage the chatroom:
+- To start the chatroom server, open your terminal and use the following command:
+```
+python game_server.py
+```
+- Kick User:
+```
+close <username>
+```
+Replace <username> with the username of the user you want to kick.
+
+- Close Server:
+
+```
+close .
+```
+This command will gracefully close the chatroom server.
+
+
 ### Chat
 - To connect to the chatroom server, open your terminal and use the following command:
 ```
@@ -61,21 +82,3 @@ Replace <opponent-username> with the username of the user you want to challenge.
 ``` 
 exit
 ```
-
-### Admin Commands
-Admins have perticular commands to manage the chatroom:
-
-- Kick User:
-```
-close <username>
-```
-Replace <username> with the username of the user you want to kick.
-
-- Close Server:
-
-```
-close .
-```
-This command will gracefully close the chatroom server.
-
-
