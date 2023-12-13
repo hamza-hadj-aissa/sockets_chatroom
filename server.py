@@ -71,7 +71,7 @@ class Server:
         self.close_event = close_event
         self.lock = threading.Lock()
         self.logger = logging.getLogger("Server")
-        self.messages_logger = logging.getLogger("Chat")
+        self.chat_logger = logging.getLogger("Chat")
 
     def start(self):
         self.server_socket.setsockopt(
@@ -116,7 +116,7 @@ class Server:
                         self._disconnect_client(client)
                     else:
                         client_username = client.getUsername()
-                        self.messages_logger.info(
+                        self.chat_logger.info(
                             f"{client_username} << {message}")
                         with self.lock:
                             self._broadcast(
@@ -126,7 +126,7 @@ class Server:
                             )
         except KeyboardInterrupt:
             self._close_server()
-        except Exception as e:
+        except socket.error as e:
             # send a close signal to client's socket when ERROR
             self.logger.warning(f"Error handling client: {e}")
             # close connection with client on ERROR
@@ -296,15 +296,10 @@ class UserInputHandler:
 
 
 if __name__ == "__main__":
-    # address = input("Host IP Address: ")
-    # port = input("Port: ")
-
     close_event = threading.Event()
 
     server = Server(("127.0.0.1", 12345), close_event)
     start_thread = threading.Thread(target=server.start)
-    # send_thread = threading.Thread(
-    #     target=server.send_message)
 
     user_input_handler = UserInputHandler(server, close_event)
     user_input_thread = threading.Thread(target=user_input_handler.start)
